@@ -4567,6 +4567,149 @@ print.iNEXTbeta3D <- function(x, ...){
 }
 
 
+
+#' Dissimilarity estimates for all pairs of assemblages
+#' 
+#' \code{iNEXTbeta3D_pair} compute observed and coverage-based standardized (estimated) Jaccard dissimilarity index (q=0), Sorensen dissimilarity index (q=0),
+#' Horn dissimilarity index (q=1), and Morisita-Horn dissimilarity index (q=2) for all pairs of assemblages.
+#' NOTE: The observed dissimilarity indices typically underestimates; they are computed only for comparison.
+#' We suggest researchers use the coverage-based standardized dissimilarity indices.
+#' 
+#' @param data a data.frame/matrix with species (rows) by assemblages (columns).
+#' @param SC a standardized sample coverage value for computing four standardized (estimated) dissimilarity indices. 
+#' By default (\code{SC = NULL}), based on all pairs of samples, SC represents the minimum among the coverage values for alpha reference samples
+#' extrapolated to double the total abundance/size.  
+#' The default coverage value is referred to as C_2n,alpha in Chao et al. (2023, Ecological Monographs) or Cmax_joint in this code; 
+#' it represents the maximum coverage value for which one can reliably infer dissimilarity and beta diversity. This value varies with dataset. 
+#' When there are many datasets, a common value of SC should be specified for the argument(e.g., (\code{SC=0.9})).
+#' @param parallel whether to do parallel computation or not.
+#' @param cpus number of cpu cores for parallel.
+#' 
+#' @return a data frame including observed and standardized Jaccard dissimilarity, observed and standardized Sorensen dissimilarity, 
+#' observed and standardized Horn index, as well as observed and standardized Morisita-Horn index for all pairs of assemblages
+#' under the default or user-specified sample coverage (SC).
+#' @export
+iNEXTbeta3D_pair <- function(data, SC = NULL, parallel = F, cpus = 2) {  
+  
+  m <- matrix(NA, ncol = dim(data)[2], nrow = dim(data)[2], byrow = T)
+  
+  pair <- data.frame(pos = 1:dim(data)[2]^2,
+                     x = rep(colnames(data), nrow(m)), 
+                     y = rep(colnames(data), each = nrow(m))) %>% 
+    mutate(pair_name = paste0(x, "_", y))
+  
+  if (is.null(SC)) SC = sapply(pair$pos, function(i) DataInfobeta3D( data[, c(pair$x[i], pair$y[i])] )$`SC(2n)`[4]) %>% min
+  
+  
+  # for parallelization
+  if (parallel == TRUE){
+    
+    loop <- function(v, com = com){
+      
+      sfCat(paste(v))
+      
+      out <- iNEXTbeta3D(com[, c(pair$x[v], pair$y[v])], q = c(0, 1, 2), level = SC, nboot = 0)[[1]]
+      
+      out.obs = iNEXTbeta3D(com[, c(pair$x[v], pair$y[v])], q = c(0, 1, 2), base = "size", 
+                            level = sum(com[, c(pair$x[v], pair$y[v])]), nboot = 0)[[1]]
+      beta.obs = out.obs$gamma$Gamma / out.obs$alpha$Alpha
+      
+      
+      ## Observed Jaccard dissimilarity q = 0 (1-U02) index 
+      jac_obs = (1/beta.obs[1] - 1) / (1/2 - 1)
+      
+      ## Standardized Jaccard dissimilarity q = 0 (1-U02) index
+      jac_est = out$`1-U`$Dissimilarity[1]
+      
+      ## Observed Sorenson dissimilarity q = 0 (1-C02) index
+      sor_obs = (beta.obs[1] - 1) / (2 - 1)
+      
+      ## Standardized Sorenson dissimilarity q = 0 (1-C02) index
+      sor_est = out$`1-C`$Dissimilarity[1]
+      
+      ## Observed Horn dissimilarity q = 1 (1-C12 = 1-U12) index
+      hor_obs = log(beta.obs[2]) / log(2)
+      
+      ## Standardized Horn dissimilarity q = 1 (1-C12 = 1-U12) index
+      hor_est = out$`1-C`$Dissimilarity[2]
+      
+      ## Observed Morisita Horn dissimilarity q = 2 (1-C22) index
+      mor_hor_obs = (1/beta.obs[3] - 1) / (1/2 - 1)
+      
+      ## Standardized Morisita Horn dissimilarity q = 2 (1-C22) index
+      mor_hor_est = out$`1-C`$Dissimilarity[3]
+      
+      
+      return(c(jac_obs = jac_obs,         jac_est = jac_est, 
+               sor_obs = sor_obs,         sor_est = sor_est,
+               hor_obs = hor_obs,         hor_est = hor_est, 
+               mor_hor_obs = mor_hor_obs, mor_hor_est = mor_hor_est))
+    }
+    
+    sfInit(parallel = TRUE, cpus = cpus, type = "SOCK")
+    sfExport("pair"); sfExport("data")
+    sfExport("loop"); sfLibrary(iNEXT.beta3D); sfLibrary(snowfall)
+    
+    res <- sfLapply(pair$pos, fun = loop, com = data)
+    sfStop()
+    
+  } else {
+    
+    loop <- function(v, com = com){
+      
+      print(v)
+      
+      out <- iNEXTbeta3D(com[, c(pair$x[v], pair$y[v])], q = c(0, 1, 2), level = SC, nboot = 0)[[1]]
+      
+      out.obs = iNEXTbeta3D(com[, c(pair$x[v], pair$y[v])], q = c(0, 1, 2), base = "size", 
+                            level = sum(com[, c(pair$x[v], pair$y[v])]), nboot = 0)[[1]]
+      beta.obs = out.obs$gamma$Gamma / out.obs$alpha$Alpha
+      
+      
+      ## Observed Jaccard dissimilarity q = 0 (1-U02) index 
+      jac_obs = (1/beta.obs[1] - 1) / (1/2 - 1)
+      
+      ## Standardized Jaccard dissimilarity q = 0 (1-U02) index
+      jac_est = out$`1-U`$Dissimilarity[1]
+      
+      ## Observed Sorenson dissimilarity q = 0 (1-C02) index
+      sor_obs = (beta.obs[1] - 1) / (2 - 1)
+      
+      ## Standardized Sorenson dissimilarity q = 0 (1-C02) index
+      sor_est = out$`1-C`$Dissimilarity[1]
+      
+      ## Observed Horn dissimilarity q = 1 (1-C12 = 1-U12) index
+      hor_obs = log(beta.obs[2]) / log(2)
+      
+      ## Standardized Horn dissimilarity q = 1 (1-C12 = 1-U12) index
+      hor_est = out$`1-C`$Dissimilarity[2]
+      
+      ## Observed Morisita Horn dissimilarity q = 2 (1-C22) index
+      mor_hor_obs = (1/beta.obs[3] - 1) / (1/2 - 1)
+      
+      ## Standardized Morisita Horn dissimilarity q = 2 (1-C22) index
+      mor_hor_est = out$`1-C`$Dissimilarity[3]
+      
+      
+      return(c(jac_obs = jac_obs,         jac_est = jac_est, 
+               sor_obs = sor_obs,         sor_est = sor_est,
+               hor_obs = hor_obs,         hor_est = hor_est, 
+               mor_hor_obs = mor_hor_obs, mor_hor_est = mor_hor_est))
+    }
+    
+    res <- lapply(pair$pos, loop, com = data)
+  }
+  
+  # finalization
+  res <- do.call(rbind, res)
+  res[res>1] <- 1  
+  res = cbind(res, SC = SC) %>% `row.names<-`(pair$pair_name)
+  
+  return(res)
+}
+
+
+
 ## ========== no visible global function definition for R CMD check ========== ##
 utils::globalVariables(c(".", "branch.abun", "branch.length", "tgroup", "Method", 
                          "Size", "SC", "Estimate", "Dataset", "div_type", "LCL", "UCL",
