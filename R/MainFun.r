@@ -4702,7 +4702,7 @@ iNEXTbeta3D_pair <- function(data, SC = NULL, parallel = F, cpus = 2) {
   
   # finalization
   res <- do.call(rbind, res)
-  res[res>1] <- 1  
+  res[res<0] <- 0
   res = cbind(res, SC = SC) %>% `row.names<-`(pair$pair_name)
   
   return(res)
