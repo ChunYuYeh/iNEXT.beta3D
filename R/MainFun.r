@@ -4585,13 +4585,16 @@ print.iNEXTbeta3D <- function(x, ...){
 #' @param parallel whether to do parallel computation or not.
 #' @param cpus number of cpu cores for parallel.
 #' 
-#' @return a data frame including observed and standardized Jaccard dissimilarity, observed and standardized Sorensen dissimilarity, 
-#' observed and standardized Horn index, as well as observed and standardized Morisita-Horn index for all pairs of assemblages
+#' @return a data frame including observed and standardized Jaccard dissimilarity (\code{jac_obs} and \code{jac_est}), observed and standardized Sorensen dissimilarity (\code{sor_obs} and \code{sor_est}), 
+#' observed and standardized Horn index (\code{hor_obs} and \code{hor_est}), as well as observed and standardized Morisita-Horn index (\code{mor_hor_obs} and \code{mor_hor_est}) for all pairs of assemblages
 #' under the default or user-specified sample coverage (SC).
 #' @export
 iNEXTbeta3D_pair <- function(data, SC = NULL, parallel = F, cpus = 2) {  
   
   m <- matrix(NA, ncol = dim(data)[2], nrow = dim(data)[2], byrow = T)
+  
+  #if (is.null(colnames(data))) colnames(data) = paste0('Assemblage_', 1:ncol(data))
+  if (is.null(colnames(data))) colnames(data) = 1:ncol(data)
   
   pair <- data.frame(pos = 1:dim(data)[2]^2,
                      x = rep(colnames(data), nrow(m)), 
